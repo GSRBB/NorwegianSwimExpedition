@@ -1607,6 +1607,19 @@ function sortByName() {
   buildTrackList(); updateStats(); draw();
 }
 
+
+function trkToGpx(trk) {
+  var lines = ['<?xml version="1.0" encoding="UTF-8"?>',
+    '<gpx version="1.1" creator="NorwegianExpeditionMap" xmlns="http://www.topografix.com/GPX/1/1">',
+    '<trk><name>' + trk.name + '</name><trkseg>'];
+  for (var i=0; i<trk.pts.length; i++) {
+    var p = trk.pts[i];
+    lines.push('<trkpt lat="' + p[0].toFixed(6) + '" lon="' + p[1].toFixed(6) + '"><ele>' + (p[2]||0).toFixed(1) + '</ele></trkpt>');
+  }
+  lines.push('</trkseg></trk></gpx>');
+  return lines.join('\n');
+}
+
 // ── GPX LOCAL LOAD WITH DATE PICKER ──────────────────────────────────────────
 var _dpQueue = [];
 var _dpCallback = null;
@@ -1646,8 +1659,8 @@ function _dpProcessQueue() {
         // Use 2025 as base year for consistent sorting with baked-in tracks
         trk.dateMs = new Date(2025, d.getMonth(), d.getDate()).getTime();
       }
-      // Queue for "Save to server"
-      _pendingGpx.push({ content: item.rawContent, name: trk.name });
+      // Queue for "Save to server" — store track ref, generate minimal GPX on save
+      _pendingGpx.push({ trk: trk, name: trk.name });
     }
     TRACKS.push(trk); visible.push(true);
     _dpProcessQueue();
@@ -1663,7 +1676,7 @@ function loadGPXFiles(files) {
       var reader = new FileReader();
       reader.onload = function(e) {
         var trk = parseGPX(e.target.result, file.name);
-        if (trk) parsed.push({ trk: trk, filename: file.name, rawContent: e.target.result });
+        if (trk) parsed.push({ trk: trk, filename: file.name });
         remaining--;
         if (remaining === 0) {
           parsed.forEach(function(item) { _dpQueue.push(item); });
@@ -2103,18 +2116,13 @@ window.addEventListener('load', function() {
           return;
         }
         var item = queue.shift();
-        if (!item.content) {
-          status.textContent = '❌ No GPX content for ' + item.name + '. Try loading the file again.';
-          status.className = 'error';
-          btn.disabled = false;
-          return;
-        }
+        var gpxContent = trkToGpx(item.trk);
         status.textContent = 'Saving ' + item.name + '… (' + (done+1) + '/' + (done + queue.length + 1) + ')';
         fetch(GAS_URL, {
           method: 'POST',
           mode: 'no-cors',
           headers: {'Content-Type': 'text/plain'},
-          body: JSON.stringify({ gpx: item.content, name: item.name, password: pass })
+          body: JSON.stringify({ gpx: gpxContent, name: item.name, password: pass })
         })
         .then(function() { done++; sendNext(); })
         .catch(function(){
