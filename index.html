@@ -111,6 +111,13 @@ header{padding:0;border-bottom:1px solid var(--border);background:var(--surface)
 .trk-name-input{font-size:0.7rem;background:transparent;border:none;color:var(--text);font-family:'Inter',sans-serif;outline:none;width:100%;}
 .trk-name-input:focus{border-bottom:1px solid rgba(42,122,42,0.5);}
 .trk-dist{font-size:0.58rem;color:var(--muted);}
+.month-header{display:flex;align-items:center;gap:6px;padding:4px 4px 2px;cursor:pointer;user-select:none;border-top:1px solid rgba(255,255,255,0.08);margin-top:4px;}
+.month-header:first-child{border-top:none;margin-top:0;}
+.month-label{font-size:0.68rem;font-weight:600;color:var(--accent);letter-spacing:0.04em;flex:1;}
+.month-km{font-size:0.58rem;color:var(--muted);}
+.month-chevron{font-size:0.6rem;color:var(--muted);transition:transform 0.2s;}
+.month-chevron.closed{transform:rotate(-90deg);}
+.month-tracks{overflow:hidden;}
 .trk-del{font-size:0.8rem;color:var(--muted);cursor:pointer;flex-shrink:0;padding:0 3px;line-height:1;-webkit-tap-highlight-color:transparent;}
 .trk-del:active{color:#c0392b;}
 .global-toggles{display:flex;flex-direction:column;gap:10px;}
@@ -1340,14 +1347,62 @@ function moveTrack(i, dir) {
   buildTrackList(); updateStats(); draw();
 }
 
+// Track which month groups are collapsed: key = month label string
+var collapsedMonths = {};
+
+function getMonthLabel(name) {
+  // Expect names like "09 Sep", "10 Oct" — extract the 3-letter month
+  var m = (name||'').match(/\b([A-Za-z]{3})\b/);
+  return m ? m[1] : 'Other';
+}
+
 function buildTrackList() {
   var list=document.getElementById('track-list');
   list.innerHTML='';
+  // Group tracks by month
+  var curMonth = null, monthContainer = null;
   TRACKS.forEach(function(trk,i) {
+    var month = getMonthLabel(trk.name);
+
+    // Start a new month group when month changes
+    if (month !== curMonth) {
+      curMonth = month;
+      // Calculate total km for this month
+      var monthKm = 0;
+      TRACKS.forEach(function(t){ if(getMonthLabel(t.name)===month) monthKm+=(t.dist||0); });
+
+      var collapsed = !!collapsedMonths[month];
+
+      // Header row
+      var hdr = document.createElement('div');
+      hdr.className = 'month-header';
+      hdr.innerHTML = '<span class="month-chevron'+(collapsed?' closed':'')+'">▾</span>'
+                    + '<span class="month-label">'+month+'</span>'
+                    + '<span class="month-km">'+fmtDist(monthKm)+'</span>';
+
+      // Tracks container
+      monthContainer = document.createElement('div');
+      monthContainer.className = 'month-tracks';
+      monthContainer.id = 'month-'+month;
+      if (collapsed) monthContainer.style.display = 'none';
+
+      (function(m, cont, chev){
+        hdr.addEventListener('click', function(){
+          var isOpen = cont.style.display !== 'none';
+          cont.style.display = isOpen ? 'none' : '';
+          chev.className = 'month-chevron' + (isOpen ? ' closed' : '');
+          collapsedMonths[m] = isOpen;
+        });
+      })(month, monthContainer, hdr.querySelector('.month-chevron'));
+
+      list.appendChild(hdr);
+      list.appendChild(monthContainer);
+    }
+
+    // Build the track row (same as before)
     var row=document.createElement('div');
     row.className='track-row'+(visible[i]?'':' off'); row.id='row-'+i;
 
-    // ↑↓ reorder buttons
     var moveWrap=document.createElement('div'); moveWrap.className='trk-move';
     var btnUp=document.createElement('button'); btnUp.className='trk-move-btn'; btnUp.textContent='▲'; btnUp.title='Move up';
     var btnDn=document.createElement('button'); btnDn.className='trk-move-btn'; btnDn.textContent='▼'; btnDn.title='Move down';
@@ -1379,7 +1434,7 @@ function buildTrackList() {
     (function(idx){ del.addEventListener('click',function(){ if(confirm('Remove '+TRACKS[idx].name+'?')) removeTrack(idx); }); })(i);
 
     row.appendChild(moveWrap); row.appendChild(tog); row.appendChild(swatch); row.appendChild(info); row.appendChild(del);
-    list.appendChild(row);
+    monthContainer.appendChild(row);
   });
 }
 
