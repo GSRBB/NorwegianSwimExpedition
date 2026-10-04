@@ -1523,7 +1523,21 @@ function parseGPX(xml, filename) {
       }
     }
   }
-  var name = autoName || filename.replace(/\.gpx$/i,'');
+  // Try to extract "DD Mon" from filename e.g. "10_Sep.gpx" or "10 Sep.gpx"
+  if (!autoName) {
+    var base = filename.replace(/\.gpx$/i,'').replace(/_/g,' ');
+    var fnMatch = base.match(/(\d{1,2})\s+([A-Za-z]{3})/);
+    if (fnMatch) {
+      var monNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      var monIdx = monNames.findIndex(function(m){ return m.toLowerCase()===fnMatch[2].toLowerCase(); });
+      if (monIdx >= 0) {
+        autoName = parseInt(fnMatch[1]) + ' ' + monNames[monIdx];
+        var yr = new Date().getFullYear();
+        dateMs = new Date(yr, monIdx, parseInt(fnMatch[1])).getTime();
+      }
+    }
+  }
+  var name = autoName || filename.replace(/\.gpx$/i,'').replace(/_/g,' ');
 
   var color = NEXT_COLORS[colorIdx % NEXT_COLORS.length];
   colorIdx++;
