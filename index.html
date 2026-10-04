@@ -1568,7 +1568,22 @@ function parseGPX(xml, filename) {
   return trk;
 }
 
+function dateFromName(name) {
+  // Parse dateMs from names like "06 Apr", "21 May" etc.
+  var monNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var m = (name||'').match(/(\d{1,2})\s+([A-Za-z]{3})/);
+  if (!m) return 0;
+  var monIdx = -1;
+  for (var i=0; i<monNames.length; i++) { if (monNames[i].toLowerCase()===m[2].toLowerCase()) { monIdx=i; break; } }
+  if (monIdx < 0) return 0;
+  return new Date(new Date().getFullYear(), monIdx, parseInt(m[1])).getTime();
+}
+
 function sortTracksByDate() {
+  // Backfill dateMs from name for baked-in tracks that have none
+  TRACKS.forEach(function(trk) {
+    if (!trk.dateMs) trk.dateMs = dateFromName(trk.name);
+  });
   // Sort tracks that have a date; tracks without dates stay at end
   TRACKS.sort(function(a, b) {
     var da = a.dateMs || 0, db = b.dateMs || 0;
@@ -1915,6 +1930,8 @@ window.addEventListener('load', function() {
   ctx = cv.getContext('2d');
 
   TRACKS.forEach(function(t){ t.dist = trackDist(t.pts); });
+  // Backfill dateMs from name for all baked-in tracks
+  TRACKS.forEach(function(t){ if (!t.dateMs) t.dateMs = dateFromName(t.name); });
   stitchTracks();
 
   // Drawer handle toggle
