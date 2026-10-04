@@ -1539,7 +1539,7 @@ function parseGPX(xml, filename) {
       var d = new Date(trkptTimeEl.textContent.trim());
       if (!isNaN(d.getTime())) {
         var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        autoName = d.getDate() + ' ' + months[d.getMonth()];
+        autoName = (d.getDate()<10?'0':'')+d.getDate() + ' ' + months[d.getMonth()];
         dateMs = d.getTime();
       }
     }
@@ -1552,9 +1552,8 @@ function parseGPX(xml, filename) {
       var monNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       var monIdx = -1; for (var mi=0; mi<monNames.length; mi++) { if (monNames[mi].toLowerCase()===fnMatch[2].toLowerCase()) { monIdx=mi; break; } }
       if (monIdx >= 0) {
-        autoName = parseInt(fnMatch[1]) + ' ' + monNames[monIdx];
-        var yr = new Date().getFullYear();
-        dateMs = new Date(yr, monIdx, parseInt(fnMatch[1])).getTime();
+        autoName = (parseInt(fnMatch[1])<10?'0':'')+parseInt(fnMatch[1]) + ' ' + monNames[monIdx];
+        dateMs = new Date(2025, monIdx, parseInt(fnMatch[1])).getTime();
       }
     }
   }
@@ -1576,7 +1575,7 @@ function dateFromName(name) {
   var monIdx = -1;
   for (var i=0; i<monNames.length; i++) { if (monNames[i].toLowerCase()===m[2].toLowerCase()) { monIdx=i; break; } }
   if (monIdx < 0) return 0;
-  return new Date(new Date().getFullYear(), monIdx, parseInt(m[1])).getTime();
+  return new Date(2025, monIdx, parseInt(m[1])).getTime();
 }
 
 function sortTracksByDate() {
@@ -1643,8 +1642,9 @@ function _dpProcessQueue() {
         var parts = val.split('-');
         var d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
         var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        trk.name = d.getDate() + ' ' + months[d.getMonth()];
-        trk.dateMs = d.getTime();
+        trk.name = (d.getDate()<10?'0':'')+d.getDate() + ' ' + months[d.getMonth()];
+        // Use 2025 as base year for consistent sorting with baked-in tracks
+        trk.dateMs = new Date(2025, d.getMonth(), d.getDate()).getTime();
       }
       // Store for "Save to server"
       _lastLoadedGpx = { content: item.rawContent, name: trk.name };
