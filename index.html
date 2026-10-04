@@ -402,7 +402,6 @@ footer{ display:none; }
     <div class="sb-section">
       <div class="sb-label-row">
         <span class="sb-label" style="margin-bottom:0">Segments</span>
-        <button class="btn-sort" id="btn-sort-name" title="Sort by name (latest first)">↓ Z→A</button>
       </div>
       <div class="upload-wrap" style="margin-bottom:8px">
         <div class="btn-upload">+ Load GPX locally</div>
@@ -1348,7 +1347,7 @@ function moveTrack(i, dir) {
 }
 
 // Track which month groups are collapsed: key = month label string
-var collapsedMonths = {};
+var collapsedMonths = null; // null = uninitialized; will default all months to collapsed on first build
 
 function getMonthLabel(name) {
   // Expect names like "09 Sep", "10 Oct" — extract the 3-letter month
@@ -1363,6 +1362,7 @@ function buildTrackList() {
   // Group tracks by month, preserving order
   var months = [];
   var monthMap = {};
+  if (collapsedMonths === null) collapsedMonths = {}; // will get populated as collapsed below
   TRACKS.forEach(function(trk, i) {
     var month = getMonthLabel(trk.name);
     if (!monthMap[month]) {
@@ -1379,7 +1379,8 @@ function buildTrackList() {
     var monthKm = 0;
     indices.forEach(function(i) { monthKm += (TRACKS[i].dist || 0); });
 
-    var isCollapsed = !!collapsedMonths[month];
+    // Default to collapsed (true) unless user has explicitly expanded (false)
+    var isCollapsed = collapsedMonths[month] !== false;
 
     // Month header
     var hdr = document.createElement('div');
@@ -1402,7 +1403,7 @@ function buildTrackList() {
         c.style.display = open ? 'none' : '';
         var chev = h.querySelector('.month-chevron');
         chev.className = 'month-chevron' + (open ? ' closed' : '');
-        collapsedMonths[m] = open;
+        collapsedMonths[m] = open; // open=true means we're collapsing it now → store true (collapsed)
       });
     })(month, cont, hdr);
 
@@ -1900,9 +1901,6 @@ window.addEventListener('load', function() {
     loadGPXFiles(e.target.files);
     e.target.value='';
   });
-
-  // Sort by name
-  document.getElementById('btn-sort-name').addEventListener('click', sortByName);
 
   // ── CLOUD UPLOAD MODAL ──────────────────────────────────────────────────────
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwRyM5MK4DdC8kVswSCkrZXEcsF1g-4LSZza1GGjH-gh9_vnDX1UKwntvo2j0VyTBMqRg/exec';
