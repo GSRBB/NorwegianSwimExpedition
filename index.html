@@ -2047,13 +2047,14 @@ window.addEventListener('load', function() {
     modalFile = null;
     if (_pendingGpx.length > 0) {
       var names = _pendingGpx.map(function(g){ return g.name; }).join(', ');
-      document.getElementById('modal-date').value = '';
       document.getElementById('modal-file-label').textContent = _pendingGpx.length + ' segment(s) ready: ' + names;
-      // Hide the date field — names already set per file
+      // Hide file picker and date field — already have everything we need
+      document.getElementById('modal-file-section').style.display = 'none';
       document.getElementById('modal-date').closest('.modal-field').style.display = 'none';
     } else {
       document.getElementById('modal-date').value = '';
       document.getElementById('modal-file-label').textContent = 'No file selected';
+      document.getElementById('modal-file-section').style.display = '';
       document.getElementById('modal-date').closest('.modal-field').style.display = '';
     }
   });
@@ -2096,7 +2097,8 @@ window.addEventListener('load', function() {
           _pendingGpx = [];
           status.textContent = '✅ ' + done + ' segment(s) saved! Reload to see.';
           status.className = 'success';
-          // Restore date field
+          // Restore hidden fields
+          document.getElementById('modal-file-section').style.display = '';
           document.getElementById('modal-date').closest('.modal-field').style.display = '';
           return;
         }
