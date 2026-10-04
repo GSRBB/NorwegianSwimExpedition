@@ -2117,26 +2117,44 @@ window.addEventListener('load', function() {
         }
         var item = queue.shift();
         var gpxContent = trkToGpx(item.trk);
-        status.textContent = 'Saving ' + item.name + '… (' + (done+1) + '/' + (done + queue.length + 1) + ')';
-        // Use XMLHttpRequest with text/plain to avoid CORS preflight
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', GAS_URL, true);
-        xhr.setRequestHeader('Content-Type', 'text/plain');
-        xhr.onload = function() {
-          try {
-            var data = JSON.parse(xhr.responseText);
-            if (data.ok) { done++; sendNext(); }
-            else {
-              status.textContent = '❌ ' + item.name + ': ' + (data.error || 'Server error');
-              status.className = 'error'; btn.disabled = false;
-            }
-          } catch(e) { done++; sendNext(); } // non-JSON response, assume ok
-        };
-        xhr.onerror = function() {
-          status.textContent = '❌ Network error on ' + item.name + '. Try again.';
+        var itemName = item.name;
+        status.textContent = 'Saving ' + itemName + '…';
+        // Fire with no-cors (GAS can't set CORS headers via ContentService)
+        fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {'Content-Type': 'text/plain'},
+          body: JSON.stringify({ gpx: gpxContent, name: itemName, password: pass })
+        })
+        .then(function() {
+          // Can't read response due to no-cors — poll GitHub to verify
+          status.textContent = 'Verifying ' + itemName + '…';
+          var attempts = 0;
+          function checkGitHub() {
+            fetch('https://api.github.com/repos/GSRBB/NorwegianSwimExpedition/commits/main', {
+              headers: {'Accept': 'application/vnd.github.v3+json'}
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(data) {
+              var msg = data.commit && data.commit.message || '';
+              if (msg.indexOf(itemName) !== -1) {
+                done++; sendNext();
+              } else if (attempts++ < 10) {
+                setTimeout(checkGitHub, 3000);
+              } else {
+                status.textContent = '⚠️ Sent but could not verify. Check after reload.';
+                status.className = 'error';
+                btn.disabled = false;
+              }
+            })
+            .catch(function() { done++; sendNext(); });
+          }
+          setTimeout(checkGitHub, 4000);
+        })
+        .catch(function(){
+          status.textContent = '❌ Network error on ' + itemName + '. Try again.';
           status.className = 'error'; btn.disabled = false;
-        };
-        xhr.send(JSON.stringify({ gpx: gpxContent, name: item.name, password: pass }));
+        });
       }
       sendNext();
       return;
