@@ -1,3 +1,4 @@
+<!-- v2026-10-04-c -->
 <html lang="en"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1529,7 +1530,7 @@ function parseGPX(xml, filename) {
     var fnMatch = base.match(/(\d{1,2})\s+([A-Za-z]{3})/);
     if (fnMatch) {
       var monNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      var monIdx = monNames.findIndex(function(m){ return m.toLowerCase()===fnMatch[2].toLowerCase(); });
+      var monIdx = -1; for (var mi=0; mi<monNames.length; mi++) { if (monNames[mi].toLowerCase()===fnMatch[2].toLowerCase()) { monIdx=mi; break; } }
       if (monIdx >= 0) {
         autoName = parseInt(fnMatch[1]) + ' ' + monNames[monIdx];
         var yr = new Date().getFullYear();
