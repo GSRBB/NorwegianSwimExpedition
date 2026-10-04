@@ -249,7 +249,6 @@ footer{ display:none; }
 #modal-status.success{color:var(--accent);}
 /* Date picker modal */
 #date-picker-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:200;display:none;align-items:center;justify-content:center;}
-#date-picker-overlay.visible{display:flex;}
 #date-picker-modal{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px 18px;width:280px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,0.2);font-family:'Inter',sans-serif;}
 #date-picker-modal h3{margin:0 0 4px;font-size:0.9rem;color:var(--text);font-weight:700;}
 #date-picker-modal .dp-filename{font-size:0.6rem;color:var(--muted);margin-bottom:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -1560,75 +1559,62 @@ function sortByName() {
 }
 
 // ── GPX LOCAL LOAD WITH DATE PICKER ──────────────────────────────────────────
-var _dpQueue = [];   // pending {trk, resolve} items
-var _dpPending = false;
+var _dpQueue = [];
+var _dpCallback = null;
 
-function _dpFlush() {
-  // After all date-picker interactions done, finalise
-  sortTracksByDate();
-  buildTrackList(); updateStats(); updateFooter(); fitAll(); draw();
+function _dpFmtDate(d) {
+  var y = d.getFullYear();
+  var m = (d.getMonth()+1 < 10 ? '0' : '') + (d.getMonth()+1);
+  var dd = (d.getDate() < 10 ? '0' : '') + d.getDate();
+  return y + '-' + m + '-' + dd;
 }
 
-function _dpShowNext() {
-  if (_dpQueue.length === 0) { _dpPending = false; _dpFlush(); return; }
-  _dpPending = true;
+function _dpProcessQueue() {
+  if (_dpQueue.length === 0) {
+    sortTracksByDate();
+    buildTrackList(); updateStats(); updateFooter(); fitAll(); draw();
+    return;
+  }
   var item = _dpQueue.shift();
   var trk = item.trk;
-  var filename = item.filename;
 
-  // Pre-fill with auto-detected date if available, otherwise today
-  var prefill = item.trk.dateMs ? new Date(item.trk.dateMs) : new Date();
-  var yyyy = prefill.getFullYear();
-  var mm = String(prefill.getMonth()+1).padStart(2,'0');
-  var dd = String(prefill.getDate()).padStart(2,'0');
-  document.getElementById('dp-date-input').value = yyyy+'-'+mm+'-'+dd;
-  document.getElementById('dp-filename').textContent = filename;
-  document.getElementById('date-picker-overlay').classList.add('visible');
+  var prefill = trk.dateMs ? new Date(trk.dateMs) : new Date();
+  document.getElementById('dp-date-input').value = _dpFmtDate(prefill);
+  document.getElementById('dp-filename').textContent = item.filename;
+  document.getElementById('date-picker-overlay').style.display = 'flex';
 
-  function applyDate() {
-    var val = document.getElementById('dp-date-input').value; // "YYYY-MM-DD"
-    if (val) {
-      var parts = val.split('-');
-      var d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
-      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      trk.name = d.getDate() + ' ' + months[d.getMonth()];
-      trk.dateMs = d.getTime();
+  _dpCallback = function(confirmed) {
+    _dpCallback = null;
+    document.getElementById('date-picker-overlay').style.display = 'none';
+    if (confirmed) {
+      var val = document.getElementById('dp-date-input').value;
+      if (val) {
+        var parts = val.split('-');
+        var d = new Date(parseInt(parts[0]), parseInt(parts[1])-1, parseInt(parts[2]));
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        trk.name = d.getDate() + ' ' + months[d.getMonth()];
+        trk.dateMs = d.getTime();
+      }
     }
     TRACKS.push(trk); visible.push(true);
-    document.getElementById('date-picker-overlay').classList.remove('visible');
-    document.getElementById('dp-ok').removeEventListener('click', onOk);
-    document.getElementById('dp-skip').removeEventListener('click', onSkip);
-    _dpShowNext();
-  }
-  function onOk() { applyDate(); }
-  function onSkip() {
-    // Keep whatever name/date parseGPX found (may be auto-detected or fallback)
-    TRACKS.push(trk); visible.push(true);
-    document.getElementById('date-picker-overlay').classList.remove('visible');
-    document.getElementById('dp-ok').removeEventListener('click', onOk);
-    document.getElementById('dp-skip').removeEventListener('click', onSkip);
-    _dpShowNext();
-  }
-  document.getElementById('dp-ok').addEventListener('click', onOk);
-  document.getElementById('dp-skip').addEventListener('click', onSkip);
+    _dpProcessQueue();
+  };
 }
 
 function loadGPXFiles(files) {
   if (!files.length) return;
   var remaining = files.length;
   var parsed = [];
-
-  for (var i=0; i<files.length; i++) {
+  for (var i = 0; i < files.length; i++) {
     (function(file) {
       var reader = new FileReader();
       reader.onload = function(e) {
         var trk = parseGPX(e.target.result, file.name);
-        if (trk) parsed.push({ trk:trk, filename:file.name, hasDate: !!trk.dateMs });
+        if (trk) parsed.push({ trk: trk, filename: file.name });
         remaining--;
         if (remaining === 0) {
-          // Always show date picker for every file (pre-filled with auto-detected date)
           parsed.forEach(function(item) { _dpQueue.push(item); });
-          if (!_dpPending) _dpShowNext();
+          _dpProcessQueue();
         }
       };
       reader.readAsText(file);
@@ -1983,9 +1969,15 @@ window.addEventListener('load', function() {
     e.target.value='';
   });
 
-  // Date picker: Enter key = OK
+  // Date picker buttons
+  document.getElementById('dp-ok').addEventListener('click', function() {
+    if (_dpCallback) _dpCallback(true);
+  });
+  document.getElementById('dp-skip').addEventListener('click', function() {
+    if (_dpCallback) _dpCallback(false);
+  });
   document.getElementById('dp-date-input').addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') document.getElementById('dp-ok').click();
+    if (e.key === 'Enter' && _dpCallback) _dpCallback(true);
   });
 
   // ── CLOUD UPLOAD MODAL ──────────────────────────────────────────────────────
