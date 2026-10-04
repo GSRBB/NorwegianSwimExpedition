@@ -1510,20 +1510,21 @@ function parseGPX(xml, filename) {
   // Always include last point
   if (sampled[sampled.length-1] !== pts[pts.length-1]) sampled.push(pts[pts.length-1]);
 
-  var nameEl = doc.getElementsByTagName('name')[0];
-  // Try to get date from first trkpt <time> element
-  var timeEl = doc.getElementsByTagName('time')[0];
+  // Try to get date from <time> inside the first <trkpt> (not metadata <time>)
   var autoName = '';
   var dateMs = 0;
-  if (timeEl) {
-    var d = new Date(timeEl.textContent.trim());
-    if (!isNaN(d.getTime())) {
-      var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      autoName = d.getDate() + ' ' + months[d.getMonth()];
-      dateMs = d.getTime();
+  if (trkpts.length > 0) {
+    var trkptTimeEl = trkpts[0].getElementsByTagName('time')[0];
+    if (trkptTimeEl) {
+      var d = new Date(trkptTimeEl.textContent.trim());
+      if (!isNaN(d.getTime())) {
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        autoName = d.getDate() + ' ' + months[d.getMonth()];
+        dateMs = d.getTime();
+      }
     }
   }
-  var name = autoName || (nameEl ? nameEl.textContent.trim() : filename.replace(/\.gpx$/i,''));
+  var name = autoName || filename.replace(/\.gpx$/i,'');
 
   var color = NEXT_COLORS[colorIdx % NEXT_COLORS.length];
   colorIdx++;
@@ -1575,11 +1576,11 @@ function _dpShowNext() {
   var trk = item.trk;
   var filename = item.filename;
 
-  // Pre-fill with today's date
-  var today = new Date();
-  var yyyy = today.getFullYear();
-  var mm = String(today.getMonth()+1).padStart(2,'0');
-  var dd = String(today.getDate()).padStart(2,'0');
+  // Pre-fill with auto-detected date if available, otherwise today
+  var prefill = item.trk.dateMs ? new Date(item.trk.dateMs) : new Date();
+  var yyyy = prefill.getFullYear();
+  var mm = String(prefill.getMonth()+1).padStart(2,'0');
+  var dd = String(prefill.getDate()).padStart(2,'0');
   document.getElementById('dp-date-input').value = yyyy+'-'+mm+'-'+dd;
   document.getElementById('dp-filename').textContent = filename;
   document.getElementById('date-picker-overlay').classList.add('visible');
@@ -1625,20 +1626,9 @@ function loadGPXFiles(files) {
         if (trk) parsed.push({ trk:trk, filename:file.name, hasDate: !!trk.dateMs });
         remaining--;
         if (remaining === 0) {
-          // Tracks with auto-detected dates go in directly; others get the picker
-          parsed.forEach(function(item) {
-            if (item.hasDate) {
-              TRACKS.push(item.trk); visible.push(true);
-            } else {
-              _dpQueue.push(item);
-            }
-          });
-          if (_dpQueue.length > 0 && !_dpPending) {
-            _dpShowNext();
-          } else if (_dpQueue.length === 0) {
-            sortTracksByDate();
-            buildTrackList(); updateStats(); updateFooter(); fitAll(); draw();
-          }
+          // Always show date picker for every file (pre-filled with auto-detected date)
+          parsed.forEach(function(item) { _dpQueue.push(item); });
+          if (!_dpPending) _dpShowNext();
         }
       };
       reader.readAsText(file);
