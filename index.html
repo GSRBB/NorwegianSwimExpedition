@@ -2103,6 +2103,12 @@ window.addEventListener('load', function() {
           return;
         }
         var item = queue.shift();
+        if (!item.content) {
+          status.textContent = '❌ No GPX content for ' + item.name + '. Try loading the file again.';
+          status.className = 'error';
+          btn.disabled = false;
+          return;
+        }
         status.textContent = 'Saving ' + item.name + '… (' + (done+1) + '/' + (done + queue.length + 1) + ')';
         fetch(GAS_URL, {
           method: 'POST',
