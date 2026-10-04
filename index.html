@@ -2111,13 +2111,15 @@ window.addEventListener('load', function() {
 
     // If pending locally-loaded files, send them all in sequence
     if (_pendingGpx.length > 0) {
-      // Check for duplicates against already-saved tracks
-      var existingNames = TRACKS.map(function(t){ return t.name; });
-      var duplicates = _pendingGpx.filter(function(g){ return existingNames.indexOf(g.name) !== -1; });
+      // Check for duplicates against already-saved tracks (exclude pending ones)
+      var pendingNames = _pendingGpx.map(function(g){ return g.name; });
+      var savedNames = TRACKS.map(function(t){ return t.name; }).filter(function(n){ return pendingNames.indexOf(n) === -1; });
+      var duplicates = _pendingGpx.filter(function(g){ return savedNames.indexOf(g.name) !== -1; });
       if (duplicates.length > 0) {
         var dupNames = duplicates.map(function(g){ return g.name; }).join(', ');
         status.textContent = '⚠️ Already saved: ' + dupNames + '. Rename in date picker or skip.';
         status.className = 'error';
+        btn.disabled = false;
         return;
       }
       var queue = _pendingGpx.slice(); // copy
