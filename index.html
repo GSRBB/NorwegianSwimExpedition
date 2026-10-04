@@ -1359,85 +1359,99 @@ function getMonthLabel(name) {
 function buildTrackList() {
   var list=document.getElementById('track-list');
   list.innerHTML='';
-  // Group tracks by month
-  var curMonth = null, monthContainer = null;
-  TRACKS.forEach(function(trk,i) {
+
+  // Group tracks by month, preserving order
+  var months = [];
+  var monthMap = {};
+  TRACKS.forEach(function(trk, i) {
     var month = getMonthLabel(trk.name);
-
-    // Start a new month group when month changes
-    if (month !== curMonth) {
-      curMonth = month;
-      // Calculate total km for this month
-      var monthKm = 0;
-      TRACKS.forEach(function(t){ if(getMonthLabel(t.name)===month) monthKm+=(t.dist||0); });
-
-      var collapsed = !!collapsedMonths[month];
-
-      // Header row
-      var hdr = document.createElement('div');
-      hdr.className = 'month-header';
-      hdr.innerHTML = '<span class="month-chevron'+(collapsed?' closed':'')+'">▾</span>'
-                    + '<span class="month-label">'+month+'</span>'
-                    + '<span class="month-km">'+fmtDist(monthKm)+'</span>';
-
-      // Tracks container
-      monthContainer = document.createElement('div');
-      monthContainer.className = 'month-tracks';
-      monthContainer.id = 'month-'+month;
-      if (collapsed) monthContainer.style.display = 'none';
-
-      (function(m, cont, chev){
-        hdr.addEventListener('click', function(){
-          var isOpen = cont.style.display !== 'none';
-          cont.style.display = isOpen ? 'none' : '';
-          chev.className = 'month-chevron' + (isOpen ? ' closed' : '');
-          collapsedMonths[m] = isOpen;
-        });
-      })(month, monthContainer, hdr.querySelector('.month-chevron'));
-
-      list.appendChild(hdr);
-      list.appendChild(monthContainer);
+    if (!monthMap[month]) {
+      months.push(month);
+      monthMap[month] = [];
     }
+    monthMap[month].push(i);
+  });
 
-    // Build the track row (same as before)
-    var row=document.createElement('div');
-    row.className='track-row'+(visible[i]?'':' off'); row.id='row-'+i;
+  months.forEach(function(month) {
+    var indices = monthMap[month];
 
-    var moveWrap=document.createElement('div'); moveWrap.className='trk-move';
-    var btnUp=document.createElement('button'); btnUp.className='trk-move-btn'; btnUp.textContent='▲'; btnUp.title='Move up';
-    var btnDn=document.createElement('button'); btnDn.className='trk-move-btn'; btnDn.textContent='▼'; btnDn.title='Move down';
-    (function(idx){
-      btnUp.addEventListener('click',function(e){ e.stopPropagation(); moveTrack(idx,-1); });
-      btnDn.addEventListener('click',function(e){ e.stopPropagation(); moveTrack(idx, 1); });
-    })(i);
-    moveWrap.appendChild(btnUp); moveWrap.appendChild(btnDn);
+    // Total km for this month
+    var monthKm = 0;
+    indices.forEach(function(i) { monthKm += (TRACKS[i].dist || 0); });
 
-    var tog=document.createElement('div');
-    tog.className='tog'+(visible[i]?' on':''); tog.id='tog-'+i;
-    (function(idx){ tog.addEventListener('click',function(){ toggleTrack(idx); }); })(i);
+    var isCollapsed = !!collapsedMonths[month];
 
-    var swatch=document.createElement('div'); swatch.className='color-swatch'; swatch.style.background=trk.color;
-    var ci=document.createElement('input'); ci.type='color'; ci.value=trk.color;
-    (function(t,sw,inp){ inp.addEventListener('input',function(){ t.color=inp.value; sw.style.background=t.color; draw(); }); })(trk,swatch,ci);
-    swatch.appendChild(ci);
+    // Month header
+    var hdr = document.createElement('div');
+    hdr.className = 'month-header';
+    hdr.innerHTML =
+      '<span class="month-chevron' + (isCollapsed ? ' closed' : '') + '">\u25be</span>' +
+      '<span class="month-label">' + month + '</span>' +
+      '<span class="month-km">' + fmtDist(monthKm) + '</span>';
 
-    var info=document.createElement('div'); info.className='trk-info';
-    var ni=document.createElement('input'); ni.type='text'; ni.className='trk-name-input'; ni.value=trk.name; ni.spellcheck=false;
-    (function(t,inp){
-      inp.addEventListener('input',function(){ t.name=inp.value; draw(); });
-      inp.addEventListener('click',function(e){ e.stopPropagation(); });
-    })(trk,ni);
-    var distEl=document.createElement('div'); distEl.className='trk-dist'; distEl.textContent=fmtDist(trk.dist||0);
-    info.appendChild(ni); info.appendChild(distEl);
+    // Container for this month's tracks
+    var cont = document.createElement('div');
+    cont.className = 'month-tracks';
+    cont.id = 'month-' + month;
+    if (isCollapsed) cont.style.display = 'none';
 
-    var del=document.createElement('span'); del.className='trk-del'; del.textContent='×'; del.title='Remove segment';
-    (function(idx){ del.addEventListener('click',function(){ if(confirm('Remove '+TRACKS[idx].name+'?')) removeTrack(idx); }); })(i);
+    // Click to collapse/expand
+    (function(m, c, h) {
+      h.addEventListener('click', function() {
+        var open = c.style.display !== 'none';
+        c.style.display = open ? 'none' : '';
+        var chev = h.querySelector('.month-chevron');
+        chev.className = 'month-chevron' + (open ? ' closed' : '');
+        collapsedMonths[m] = open;
+      });
+    })(month, cont, hdr);
 
-    row.appendChild(moveWrap); row.appendChild(tog); row.appendChild(swatch); row.appendChild(info); row.appendChild(del);
-    monthContainer.appendChild(row);
+    list.appendChild(hdr);
+    list.appendChild(cont);
+
+    // Track rows
+    indices.forEach(function(i) {
+      var trk = TRACKS[i];
+      var row = document.createElement('div');
+      row.className = 'track-row' + (visible[i] ? '' : ' off');
+      row.id = 'row-' + i;
+
+      var moveWrap = document.createElement('div'); moveWrap.className = 'trk-move';
+      var btnUp = document.createElement('button'); btnUp.className = 'trk-move-btn'; btnUp.textContent = '\u25b2'; btnUp.title = 'Move up';
+      var btnDn = document.createElement('button'); btnDn.className = 'trk-move-btn'; btnDn.textContent = '\u25bc'; btnDn.title = 'Move down';
+      (function(idx) {
+        btnUp.addEventListener('click', function(e) { e.stopPropagation(); moveTrack(idx, -1); });
+        btnDn.addEventListener('click', function(e) { e.stopPropagation(); moveTrack(idx, 1); });
+      })(i);
+      moveWrap.appendChild(btnUp); moveWrap.appendChild(btnDn);
+
+      var tog = document.createElement('div');
+      tog.className = 'tog' + (visible[i] ? ' on' : '');
+      tog.id = 'tog-' + i;
+      (function(idx) { tog.addEventListener('click', function() { toggleTrack(idx); }); })(i);
+
+      var swatch = document.createElement('div'); swatch.className = 'color-swatch'; swatch.style.background = trk.color;
+      var ci = document.createElement('input'); ci.type = 'color'; ci.value = trk.color;
+      (function(t, sw, inp) { inp.addEventListener('input', function() { t.color = inp.value; sw.style.background = t.color; draw(); }); })(trk, swatch, ci);
+      swatch.appendChild(ci);
+
+      var info = document.createElement('div'); info.className = 'trk-info';
+      var ni = document.createElement('input'); ni.type = 'text'; ni.className = 'trk-name-input'; ni.value = trk.name; ni.spellcheck = false;
+      (function(t, inp) {
+        inp.addEventListener('input', function() { t.name = inp.value; draw(); });
+        inp.addEventListener('click', function(e) { e.stopPropagation(); });
+      })(trk, ni);
+      var distEl = document.createElement('div'); distEl.className = 'trk-dist'; distEl.textContent = fmtDist(trk.dist || 0);
+      info.appendChild(ni); info.appendChild(distEl);
+
+      var del = document.createElement('span'); del.className = 'trk-del'; del.textContent = '\u00d7'; del.title = 'Remove segment';
+      (function(idx) { del.addEventListener('click', function() { if (confirm('Remove ' + TRACKS[idx].name + '?')) removeTrack(idx); }); })(i);
+
+      row.appendChild(moveWrap); row.appendChild(tog); row.appendChild(swatch); row.appendChild(info); row.appendChild(del);
+      cont.appendChild(row);
+    });
   });
 }
-
 // ── GPX PARSER ────────────────────────────────────────────────────────────────
 function parseGPX(xml, filename) {
   var parser = new DOMParser();
