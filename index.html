@@ -2112,18 +2112,11 @@ window.addEventListener('load', function() {
         status.textContent = 'Saving ' + item.name + '… (' + (done+1) + '/' + (done + queue.length + 1) + ')';
         fetch(GAS_URL, {
           method: 'POST',
-          headers: {'Content-Type': 'application/json'},
+          mode: 'no-cors',
+          headers: {'Content-Type': 'text/plain'},
           body: JSON.stringify({ gpx: item.content, name: item.name, password: pass })
         })
-        .then(function(r){ return r.json(); })
-        .then(function(data){
-          if (data.ok) { done++; sendNext(); }
-          else {
-            status.textContent = '❌ Failed on ' + item.name + ': ' + (data.error || 'error');
-            status.className = 'error';
-            btn.disabled = false;
-          }
-        })
+        .then(function() { done++; sendNext(); })
         .catch(function(){
           status.textContent = '❌ Network error on ' + item.name + '. Try again.';
           status.className = 'error';
@@ -2143,19 +2136,13 @@ window.addEventListener('load', function() {
     reader.onload = function(e) {
       fetch(GAS_URL, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        mode: 'no-cors',
+        headers: {'Content-Type': 'text/plain'},
         body: JSON.stringify({ gpx: e.target.result, name: date, password: pass })
       })
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        if (data.ok) {
-          status.textContent = '✅ Saved! Reload to see.';
-          status.className = 'success';
-        } else {
-          status.textContent = '❌ ' + (data.error || 'Save failed.');
-          status.className = 'error';
-          btn.disabled = false;
-        }
+      .then(function() {
+        status.textContent = '✅ Saved! Reload to see.';
+        status.className = 'success';
       })
       .catch(function(){
         status.textContent = '❌ Network error. Try again.';
