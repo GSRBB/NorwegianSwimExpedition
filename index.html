@@ -1610,7 +1610,7 @@ function sortByName() {
 // ── GPX LOCAL LOAD WITH DATE PICKER ──────────────────────────────────────────
 var _dpQueue = [];
 var _dpCallback = null;
-var _lastLoadedGpx = null; // {content, name} of most recently locally-loaded GPX
+var _pendingGpx = []; // [{content, name}] of locally-loaded GPX files not yet saved to server
 
 function _dpFmtDate(d) {
   var y = d.getFullYear();
@@ -1646,8 +1646,8 @@ function _dpProcessQueue() {
         // Use 2025 as base year for consistent sorting with baked-in tracks
         trk.dateMs = new Date(2025, d.getMonth(), d.getDate()).getTime();
       }
-      // Store for "Save to server"
-      _lastLoadedGpx = { content: item.rawContent, name: trk.name };
+      // Queue for "Save to server"
+      _pendingGpx.push({ content: item.rawContent, name: trk.name });
     }
     TRACKS.push(trk); visible.push(true);
     _dpProcessQueue();
@@ -2044,15 +2044,17 @@ window.addEventListener('load', function() {
     document.getElementById('modal-status').textContent = '';
     document.getElementById('modal-status').className = '';
     document.getElementById('modal-password').value = '';
-    // Pre-fill from last locally loaded GPX
-    if (_lastLoadedGpx) {
-      document.getElementById('modal-date').value = _lastLoadedGpx.name;
-      document.getElementById('modal-file-label').textContent = 'Using: ' + _lastLoadedGpx.name + ' (loaded locally)';
-      modalFile = null; // will use _lastLoadedGpx.content
+    modalFile = null;
+    if (_pendingGpx.length > 0) {
+      var names = _pendingGpx.map(function(g){ return g.name; }).join(', ');
+      document.getElementById('modal-date').value = '';
+      document.getElementById('modal-file-label').textContent = _pendingGpx.length + ' segment(s) ready: ' + names;
+      // Hide the date field — names already set per file
+      document.getElementById('modal-date').closest('.modal-field').style.display = 'none';
     } else {
       document.getElementById('modal-date').value = '';
       document.getElementById('modal-file-label').textContent = 'No file selected';
-      modalFile = null;
+      document.getElementById('modal-date').closest('.modal-field').style.display = '';
     }
   });
 
@@ -2077,30 +2079,70 @@ window.addEventListener('load', function() {
   });
 
   document.getElementById('modal-submit').addEventListener('click', function(){
-    var date = document.getElementById('modal-date').value.trim();
     var pass = document.getElementById('modal-password').value;
     var status = document.getElementById('modal-status');
-    if (!date) { status.textContent = 'Please enter a date/name.'; status.className='error'; return; }
-    if (!pass)  { status.textContent = 'Please enter the password.'; status.className='error'; return; }
-    if (!modalFile && !_lastLoadedGpx) { status.textContent = 'Please choose a GPX file.'; status.className='error'; return; }
+    if (!pass) { status.textContent = 'Please enter the password.'; status.className='error'; return; }
 
     var btn = this;
     btn.disabled = true;
-    status.textContent = 'Saving…';
     status.className = '';
 
-    function doUpload(gpxContent) {
+    // If pending locally-loaded files, send them all in sequence
+    if (_pendingGpx.length > 0) {
+      var queue = _pendingGpx.slice(); // copy
+      var done = 0;
+      function sendNext() {
+        if (queue.length === 0) {
+          _pendingGpx = [];
+          status.textContent = '✅ ' + done + ' segment(s) saved! Reload to see.';
+          status.className = 'success';
+          // Restore date field
+          document.getElementById('modal-date').closest('.modal-field').style.display = '';
+          return;
+        }
+        var item = queue.shift();
+        status.textContent = 'Saving ' + item.name + '… (' + (done+1) + '/' + (done + queue.length + 1) + ')';
+        fetch(GAS_URL, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ gpx: item.content, name: item.name, password: pass })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if (data.ok) { done++; sendNext(); }
+          else {
+            status.textContent = '❌ Failed on ' + item.name + ': ' + (data.error || 'error');
+            status.className = 'error';
+            btn.disabled = false;
+          }
+        })
+        .catch(function(){
+          status.textContent = '❌ Network error on ' + item.name + '. Try again.';
+          status.className = 'error';
+          btn.disabled = false;
+        });
+      }
+      sendNext();
+      return;
+    }
+
+    // Fallback: single file from picker
+    var date = document.getElementById('modal-date').value.trim();
+    if (!date) { status.textContent = 'Please enter a date/name.'; status.className='error'; btn.disabled=false; return; }
+    if (!modalFile) { status.textContent = 'Please choose a GPX file.'; status.className='error'; btn.disabled=false; return; }
+    status.textContent = 'Saving…';
+    var reader = new FileReader();
+    reader.onload = function(e) {
       fetch(GAS_URL, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ gpx: gpxContent, name: date, password: pass })
+        body: JSON.stringify({ gpx: e.target.result, name: date, password: pass })
       })
       .then(function(r){ return r.json(); })
       .then(function(data){
         if (data.ok) {
-          status.textContent = '✅ Saved! Reload the page to see it.';
+          status.textContent = '✅ Saved! Reload to see.';
           status.className = 'success';
-          _lastLoadedGpx = null; // clear after save
         } else {
           status.textContent = '❌ ' + (data.error || 'Save failed.');
           status.className = 'error';
@@ -2112,15 +2154,8 @@ window.addEventListener('load', function() {
         status.className = 'error';
         btn.disabled = false;
       });
-    }
-
-    if (modalFile) {
-      var reader = new FileReader();
-      reader.onload = function(e) { doUpload(e.target.result); };
-      reader.readAsText(modalFile);
-    } else {
-      doUpload(_lastLoadedGpx.content);
-    }
+    };
+    reader.readAsText(modalFile);
   });
 
   // Measure tool
