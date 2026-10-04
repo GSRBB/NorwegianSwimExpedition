@@ -1659,6 +1659,14 @@ function _dpProcessQueue() {
         // Use 2025 as base year for consistent sorting with baked-in tracks
         trk.dateMs = new Date(2025, d.getMonth(), d.getDate()).getTime();
       }
+      // Auto-suffix if name already exists (two swims same day)
+      var baseName = trk.name;
+      var allNames = TRACKS.map(function(t){ return t.name; }).concat(_pendingGpx.map(function(g){ return g.name; }));
+      if (allNames.indexOf(baseName) !== -1) {
+        var n = 2;
+        while (allNames.indexOf(baseName + ' (' + n + ')') !== -1) n++;
+        trk.name = baseName + ' (' + n + ')';
+      }
       // Queue for "Save to server" — store track ref, generate minimal GPX on save
       _pendingGpx.push({ trk: trk, name: trk.name });
     }
@@ -2103,6 +2111,15 @@ window.addEventListener('load', function() {
 
     // If pending locally-loaded files, send them all in sequence
     if (_pendingGpx.length > 0) {
+      // Check for duplicates against already-saved tracks
+      var existingNames = TRACKS.map(function(t){ return t.name; });
+      var duplicates = _pendingGpx.filter(function(g){ return existingNames.indexOf(g.name) !== -1; });
+      if (duplicates.length > 0) {
+        var dupNames = duplicates.map(function(g){ return g.name; }).join(', ');
+        status.textContent = '⚠️ Already saved: ' + dupNames + '. Rename in date picker or skip.';
+        status.className = 'error';
+        return;
+      }
       var queue = _pendingGpx.slice(); // copy
       var done = 0;
       function sendNext() {
