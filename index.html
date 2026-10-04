@@ -1161,9 +1161,19 @@ function draw() {
       ctx.fillStyle=trk.color;ctx.fill();
       ctx.strokeStyle='rgba(0,0,0,0.3)';ctx.lineWidth=0.3;ctx.stroke();
       var e=proj[proj.length-1];
-      // Find index of last visible track
+      // Find index of visible track with latest dateMs (avatar goes at expedition front)
       var lastVisible = -1;
-      for (var vi=TRACKS.length-1; vi>=0; vi--) { if (visible[vi]){ lastVisible=vi; break; } }
+      var latestMs = -1;
+      for (var vi=0; vi<TRACKS.length; vi++) {
+        if (visible[vi] && (TRACKS[vi].dateMs||0) > latestMs) {
+          latestMs = TRACKS[vi].dateMs||0;
+          lastVisible = vi;
+        }
+      }
+      // Fallback: if no dateMs on any track, use last visible in array
+      if (lastVisible === -1) {
+        for (var vi=TRACKS.length-1; vi>=0; vi--) { if (visible[vi]){ lastVisible=vi; break; } }
+      }
       var isLastVisible = (i === lastVisible);
       if (isLastVisible && showAvatar && avatarImg && avatarImg.complete) {
         var avatarScale = Math.max(1.35, Math.min(3.0, (view.zoom - 10) / 4 + 1.35));
@@ -1388,14 +1398,24 @@ function buildTrackList() {
   // Group tracks by month, preserving order
   var months = [];
   var monthMap = {};
+  var monthFirstDate = {};
   if (collapsedMonths === null) collapsedMonths = {}; // will get populated as collapsed below
   TRACKS.forEach(function(trk, i) {
     var month = getMonthLabel(trk.name);
     if (!monthMap[month]) {
       months.push(month);
       monthMap[month] = [];
+      monthFirstDate[month] = trk.dateMs || 0;
     }
     monthMap[month].push(i);
+  });
+  // Sort months chronologically by earliest track date
+  months.sort(function(a, b) {
+    var da = monthFirstDate[a] || 0, db = monthFirstDate[b] || 0;
+    if (da === 0 && db === 0) return 0;
+    if (da === 0) return 1;
+    if (db === 0) return -1;
+    return da - db;
   });
 
   months.forEach(function(month) {
