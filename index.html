@@ -1984,6 +1984,8 @@ window.addEventListener('load', function() {
     document.getElementById('all-color-swatch').style.background = SAVED_COLOR;
     document.getElementById('all-color-input').value = SAVED_COLOR;
   }
+  // Always stitch in date order, never in file order (wrong order inflates km)
+  sortTracksByDate();
   stitchTracks();
 
   // Drawer handle toggle
